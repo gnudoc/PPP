@@ -1,0 +1,10 @@
+build/
+.cache/
+.direnv/
+.clangd
+CMakeLists.txt
+CMakePresets.json
+.dir-locals.el
+flake.lock
+*~
+*.bak
