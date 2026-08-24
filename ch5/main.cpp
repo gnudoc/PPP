@@ -145,7 +145,7 @@ auto main() -> int {
             << "Enter int op int expression.\n"
             << "You can chain the expression eg 12+3*4/3 with BODMAS.\n"
             << "We can only handle +,-,*,/ ops at present.\n"
-            << "Add an x to end the expression: ";
+            << "Add a q to end the expression: ";
   try {
     double val = 0;
     while (std::cin) {
