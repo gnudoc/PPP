@@ -8,24 +8,6 @@
  * And simplify that down to the right number
  */
 
-/*
- * expression grammar for a very simple calculator:
- * Expression:
- *   Term
- *   Expression "+" Term
- *   Expression "−" Term
- * Term:
- *   Primary
- *   Term "∗" Primary
- *   Term "/" Primary
- *   Term "%" Primary
- * Primary:
- *   Number
- *   "(" Expression ")"
- * Number:
- *   ﬂoating−point−literal
- */
-
 class Token {
 public:
   char kind;
