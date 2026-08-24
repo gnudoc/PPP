@@ -149,6 +149,7 @@ auto main() -> int {
   try {
     double val = 0;
     while (std::cin) {
+      std::cout << "> ";
       Token t = ts.get();
       if (t.kind == 'q')
         break; // just quit.
