@@ -2,12 +2,42 @@
 #include <exception>
 #include <iostream>
 #include <stdexcept>
+#include <string>
 
 /*
- * Take an input like 5-3.2*(74.1+3)-1.7/4 and return the right answer
+ * Simple calculator Program
+ * Version 1:
+ * Take an input like `5-3.2*(74.1+3)-1.7/4+5%2;` from cin
+ * return the right answer to cout
  * First Tokenise it to '5', '-', '3.2' etc
  * Then parse that into the mathematical expression
  * And simplify that down to the right number
+ * The grammar is:
+
+   Statement:
+     Expression
+     Print
+     Quit
+   Print:
+     ";"
+   Quit:
+     "q"
+   Expression:
+     Term
+     Expression "+" Term
+     Expression "-" Term
+   Term:
+     Primary
+     Term "*" Primary
+     Term "/" Primary
+     Term "%" Primary
+   Primary:
+     Number
+     " (" Expression ") "
+     "-" Primary
+     "+" Primary
+   Number:
+     floating point literal
  */
 
 // define some magic constants
@@ -22,7 +52,10 @@ public:
   char kind;
   double value;
   Token(char k) : kind{k}, value{0.0} {}
-  Token(char k, double v) : kind{k}, value{v} {}
+  // It's bad practice to use raw chars - it would be better to define a scoped
+  // enum
+  Token(char k, double v) // NOLINT(bugprone-easily-swappable-parameters)
+      : kind{k}, value{v} {}
 };
 
 class Token_stream {
@@ -98,7 +131,9 @@ auto Token_stream::get() -> Token {
     throw std::runtime_error("Bad token!");
   }
 }
-Token_stream ts;
+// This is bad practice; we should actually have the Token_stream and its
+// parsing functions in a class Calculator instead.
+Token_stream ts; // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
 auto expression() -> double;
 
 auto primary() -> double {
