@@ -1,23 +1,38 @@
 #include <cmath>
 #include <exception>
 #include <iostream>
+#include <numbers>
 #include <stdexcept>
 #include <string>
+#include <utility>
+#include <vector>
 
 /*
  * Simple calculator Program
  * Version 1:
- * Take an input like `5-3.2*(74.1+3)-1.7/4+5%2;` from cin
- * return the right answer to cout
- * First Tokenise it to '5', '-', '3.2' etc
- * Then parse that into the mathematical expression
- * And simplify that down to the right number
+ ** Take an input like `5-3.2*(74.1+3)-1.7/4+5%2;` from cin
+ ** return the right answer to cout
+ ** First Tokenise it to '5', '-', '3.2' etc
+ ** Then parse that into the mathematical expression
+ ** And simplify that down to the right number
+ * Version 2:
+ ** Add option of defining variables with the `let` keyword
  * The grammar is:
 
-   Statement:
-     Expression
+   Calculation:
+     Statement
      Print
      Quit
+     Calculation Statement
+   Statement:
+     Declaration
+     Expression
+   Declaration:
+     "let" Name "=" Expression
+   Name:
+     letter
+     Name letter
+     Name digit
    Print:
      ";"
    Quit:
@@ -46,16 +61,23 @@ constexpr char quit = 'q';
 constexpr char print = ';';
 constexpr std::string prompt = "> ";
 constexpr std::string result = "= ";
+const char let = 'L';
+const char name = 'a';
+const std::string decl_keywd = "let";
 
 class Token {
 public:
-  char kind;
-  double value;
-  Token(char k) : kind{k}, value{0.0} {}
-  // It's bad practice to use raw chars - it would be better to define a scoped
-  // enum
-  Token(char k, double v) // NOLINT(bugprone-easily-swappable-parameters)
-      : kind{k}, value{v} {}
+  char kind{0};
+  double value{0.0};
+  std::string name;
+  Token() = default; // modern version of :kind{0} {}
+  Token(char ch) : kind{ch} {}
+  // It's bad practice to use raw chars - as an improvement, it would be better
+  // to define a scoped enum when we come back to make this really robust
+  Token(char ch, double val) // NOLINT(bugprone-easily-swappable-parameters)
+      : kind{ch}, value{val} {}
+  // move semantics are awesome!
+  Token(char ch, std::string n) : kind{ch}, name{std::move(n)} {}
 };
 
 class Token_stream {
@@ -68,6 +90,31 @@ private:
   bool full = false;
   Token buffer{0};
 };
+
+class Variable {
+public:
+  std::string name;
+  double value;
+};
+
+std::vector<Variable>
+    var_table; // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
+
+auto get_value(const std::string &s) -> double {
+  for (const Variable &v : var_table)
+    if (v.name == s)
+      return v.value;
+  throw std::runtime_error("trying to read undefined var " + s);
+}
+
+void set_value(const std::string &s, double d) {
+  for (Variable &v : var_table)
+    if (v.name == s) {
+      v.value = d;
+      return;
+    }
+  throw std::runtime_error("trying to write undef var " + s);
+}
 
 void Token_stream::ignore_up_to(char c) {
   // check the buffer for a `c` before setting it non-full
@@ -86,7 +133,7 @@ void Token_stream::ignore_up_to(char c) {
 void Token_stream::putback(Token t) {
   if (full)
     throw std::runtime_error("putback() into a full buffer");
-  buffer = t;
+  buffer = std::move(t);
   full = true;
 }
 
@@ -98,7 +145,6 @@ auto Token_stream::get() -> Token {
   char ch = 0;
   if (!(std::cin >> ch))
     throw std::runtime_error("no input");
-
   switch (ch) {
   case print:
   case quit:
@@ -109,6 +155,7 @@ auto Token_stream::get() -> Token {
   case '-':
   case '*':
   case '/':
+  case '=':
     return Token{ch};
   case '.':
   case '0':
@@ -128,6 +175,16 @@ auto Token_stream::get() -> Token {
     return Token{number, val};
   }
   default:
+    if (isalpha(ch)) {
+      std::string s;
+      s += ch;
+      while (std::cin.get(ch) && (isalpha(ch) || isdigit(ch)))
+        s += ch;
+      std::cin.putback(ch);
+      if (s == decl_keywd)
+        return Token{let}; // if we get "let", return the L token.
+      return Token{name, s};
+    }
     throw std::runtime_error("Bad token!");
   }
 }
@@ -148,6 +205,8 @@ auto primary() -> double {
   }
   case number:
     return t.value;
+  case name:
+    return get_value(t.name);
   case '-':
     return -primary();
   case '+':
@@ -211,6 +270,44 @@ auto expression() -> double {
   }
 }
 
+auto is_declared(const std::string &var) -> bool {
+  for (const Variable &v : var_table)
+    if (v.name == var)
+      return true;
+  return false;
+}
+
+auto define_name(const std::string &var, double val) -> double {
+  if (is_declared(var))
+    throw std::runtime_error(var + " was declared twice.");
+  var_table.push_back(Variable{.name = var, .value = val});
+  return val;
+}
+
+auto declaration() -> double {
+  Token t = ts.get();
+  if (t.kind != name)
+    throw std::runtime_error("name expected in declaration");
+  Token t2 = ts.get();
+  if (t2.kind != '=')
+    throw std::runtime_error("= missing in declaration of " + t.name);
+  double d = expression();
+  define_name(t.name, d);
+  return d;
+}
+
+auto statement() -> double {
+  Token t = ts.get();
+  switch (t.kind) {
+  case let:
+    return declaration();
+  default:
+    ts.putback(t);
+    return expression();
+  }
+  return 0;
+}
+
 void clean_up_mess() { ts.ignore_up_to(print); }
 
 void calculate() {
@@ -223,7 +320,7 @@ void calculate() {
       if (t.kind == quit)
         return;
       ts.putback(t);
-      std::cout << result << expression() << '\n';
+      std::cout << result << statement() << '\n';
     } catch (std::exception &e) {
       std::cerr << "Error: " << e.what() << '\n';
       clean_up_mess();
@@ -231,12 +328,17 @@ void calculate() {
 }
 
 auto main() -> int {
-  std::cout << "ch 5.3.1 - first attempt at calculator!\n"
+  std::cout << "ch 6.8.3 - second attempt at calculator!\n"
             << "Enter int op int expression.\n"
-            << "You can chain the expression eg 12+3*4/3 with BODMAS.\n"
-            << "We can only handle +,-,*,/ ops at present.\n"
-            << "Add a q to end the expression: ";
+            << "You can chain the expression eg 12+3*4/34%5;\n"
+            << "We can handle +,-,*,/,% ops at present.\n"
+            << "pi and e are understood\n"
+            << "`let boxHeight = 5` works\n"
+            << "End each expression with a ;\n"
+            << "Quit with a q";
   try {
+    define_name("pi", std::numbers::pi);
+    define_name("e", std::numbers::e);
     calculate();
     return 0;
   } catch (std::exception &e) {
