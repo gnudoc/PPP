@@ -1,0 +1,6 @@
+build/
+.cache/
+.direnv/
+flake.lock
+*~
+*.bak
